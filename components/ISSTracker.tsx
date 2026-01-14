@@ -40,17 +40,21 @@ export default function ISSTracker() {
       
       // 2. Propagate Orbit for "Now"
       const positionAndVelocity = satellite.propagate(satrec, now);
-      const positionEci = positionAndVelocity.position as satellite.EciVec3<number>;
 
-      if (positionEci) {
-        const gmst = satellite.gstime(now);
-        const positionGd = satellite.eciToGeodetic(positionEci, gmst);
-        
-        const lat = satellite.degreesLat(positionGd.latitude);
-        const lng = satellite.degreesLong(positionGd.longitude);
-        
-        setPosition([lat, lng]);
+      // FIX 1: specific null check for the propagation result
+      if (!positionAndVelocity || !positionAndVelocity.position) {
+        return; 
       }
+
+      const positionEci = positionAndVelocity.position as satellite.EciVec3<number>;
+      
+      const gmst = satellite.gstime(now);
+      const positionGd = satellite.eciToGeodetic(positionEci, gmst);
+      
+      const lat = satellite.degreesLat(positionGd.latitude);
+      const lng = satellite.degreesLong(positionGd.longitude);
+      
+      setPosition([lat, lng]);
     };
 
     // 3. Calculate Trajectory (Next 90 mins / 1 full orbit)
@@ -59,15 +63,17 @@ export default function ISSTracker() {
     for (let i = 0; i < 90; i++) {
       const futureDate = new Date(now.getTime() + i * 60000); // Add i minutes
       const posVel = satellite.propagate(satrec, futureDate);
+
+      // FIX 2: Check for null here as well to prevent build failure
+      if (!posVel || !posVel.position) continue;
+
       const posEci = posVel.position as satellite.EciVec3<number>;
       
-      if (posEci) {
-        const gmst = satellite.gstime(futureDate);
-        const posGd = satellite.eciToGeodetic(posEci, gmst);
-        const lat = satellite.degreesLat(posGd.latitude);
-        const lng = satellite.degreesLong(posGd.longitude);
-        futurePath.push([lat, lng]);
-      }
+      const gmst = satellite.gstime(futureDate);
+      const posGd = satellite.eciToGeodetic(posEci, gmst);
+      const lat = satellite.degreesLat(posGd.latitude);
+      const lng = satellite.degreesLong(posGd.longitude);
+      futurePath.push([lat, lng]);
     }
     setTrajectory(futurePath);
 

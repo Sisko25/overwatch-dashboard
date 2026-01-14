@@ -1,56 +1,67 @@
 import { NextResponse } from 'next/server';
 import Papa from 'papaparse';
 
-// We use the Global feed as a fallback if the regional one fails
-const FEED_AFRICA = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/noaa-20-viirs-c2/csv/J1_VIIRS_C2_Africa_24h.csv";
+// Global MODIS Feed
+const FEED_URL = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_Global_24h.csv";
 
-export const dynamic = 'force-dynamic'; // Prevent caching issues
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // 1. Fetch with "User-Agent" to bypass NASA Bot Protection
-    const response = await fetch(FEED_AFRICA, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      },
-      next: { revalidate: 300 } 
-    });
+    // 1. Fetch with a strict 3-second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-    if (!response.ok) {
-      console.error(`NASA API Error: ${response.status} ${response.statusText}`);
-      throw new Error('NASA Uplink Refused');
-    }
+    const response = await fetch(FEED_URL, {
+      signal: controller.signal,
+      next: { revalidate: 300 }
+    }).catch((err: any) => { // FIX 1: Type 'err' as any
+      // Catch network errors (timeout/DNS) here
+      throw new Error(`Network Failed: ${err?.message || 'Unknown Error'}`);
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (!response.ok) throw new Error(`NASA Error: ${response.status}`);
 
     const csvText = await response.text();
 
-    return new Promise((resolve) => {
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          const fires = results.data
-            .slice(0, 1000)
-            .map((row: any) => ({
-              id: `${row.latitude}-${row.longitude}`,
-              lat: parseFloat(row.latitude),
-              lng: parseFloat(row.longitude),
-              brightness: parseFloat(row.bright_ti4 || row.brightness), // Handle different CSV headers
-            }))
-            // Strict Filter: Remove invalid points that cause crashes
-            .filter((f: any) => !isNaN(f.lat) && !isNaN(f.lng));
+    const results = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    
+    // Safety check: ensure we actually parsed rows
+    // FIX 2: Check if results.data exists and is an array
+    if (!results.data || !Array.isArray(results.data) || results.data.length === 0) {
+      throw new Error("Empty CSV Data");
+    }
 
-          resolve(NextResponse.json({ count: fires.length, fires }));
-        },
-        error: (err: any) => {
-          console.error("CSV Parse Error:", err);
-          resolve(NextResponse.json({ count: 0, fires: [] })); // Return empty instead of crashing
-        }
-      });
-    });
+    const fires = results.data.slice(0, 300).map((row: any) => ({
+      id: `F-${row.latitude}-${row.longitude}`,
+      lat: parseFloat(row.latitude),
+      lng: parseFloat(row.longitude),
+      brightness: parseFloat(row.brightness),
+    })).filter((f: any) => !isNaN(f.lat) && !isNaN(f.lng));
+
+    return NextResponse.json({ count: fires.length, fires, status: "LIVE" });
 
   } catch (error) {
-    console.error("Thermal Route Failed:", error);
-    // Return empty data (Safety Mode) so the map still loads other layers
-    return NextResponse.json({ count: 0, fires: [], status: "Offline" });
+    console.warn("⚠️ NASA Offline. Using Simulation.");
+    
+    // FIX 3: Explicitly type the array so TypeScript lets us push to it
+    const simulatedFires: any[] = [];
+    
+    for(let i=0; i<40; i++) {
+      simulatedFires.push({ 
+        id: `sim-${i}`, 
+        lat: -10 + Math.random() * 20, // Central Africa/Amazon Latitudes
+        lng: 10 + Math.random() * 30, 
+        brightness: 300 + Math.random() * 100 
+      });
+    }
+
+    return NextResponse.json({ 
+      count: simulatedFires.length, 
+      fires: simulatedFires, 
+      status: "SIMULATION" 
+    });
   }
 }

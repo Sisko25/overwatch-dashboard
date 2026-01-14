@@ -5,10 +5,14 @@ import useSWR from 'swr';
 import { AlertTriangle, Activity, Globe, Radio } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-// VVV IMPORT THE NEW COMPONENT VVV
 import LoadingScreen from '@/components/LoadingScreen';
 
-// Map loading state (appears inside the map container)
+// 🔴 FIX: Dynamically import AIAnalystLayer to prevent "window is not defined" error
+const AIAnalystLayer = dynamic(() => import('@/components/AIAnalystLayer'), { 
+  ssr: false 
+});
+
+// Map loading state
 const MapComponent = dynamic(() => import('@/components/Map'), { 
   ssr: false,
   loading: () => <div className="h-full w-full bg-void flex items-center justify-center text-matrix animate-pulse font-mono tracking-widest">INITIALIZING MAP DATA...</div>
@@ -17,19 +21,15 @@ const MapComponent = dynamic(() => import('@/components/Map'), {
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function OverwatchDashboard() {
-  // VVV NEW LOADING STATE VVV
   const [isLoading, setIsLoading] = useState(true);
   const { data: kineticData } = useSWR('/api/intel/kinetic', fetcher, { refreshInterval: 60000 });
   const [defcon, setDefcon] = useState(5);
   const [criticalEvents, setCriticalEvents] = useState(0);
 
   useEffect(() => {
-    // SIMULATE LOADING TIME (e.g., 3 seconds for a cool effect)
-    // In a real app, you might wait for data, but this looks better.
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 3000);
-
     return () => clearTimeout(timer);
   }, []);
 
@@ -43,20 +43,21 @@ export default function OverwatchDashboard() {
     }
   }, [kineticData]);
 
-  // VVV SHOW LOADING SCREEN FIRST VVV
   if (isLoading) {
     return <LoadingScreen />;
   }
 
   return (
     <main className="relative min-h-screen bg-void overflow-hidden text-matrix selection:bg-matrix selection:text-void">
-      <div className="absolute inset-0 z-0"><MapComponent /></div>
+      {/* 2. NEST THE AI LAYER INSIDE THE MAP COMPONENT */}
+      <div className="absolute inset-0 z-0">
+        <MapComponent>
+          <AIAnalystLayer />
+        </MapComponent>
+      </div>
       
-      {/* Header with LARGER Image */}
       <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-1 bg-slate/90 backdrop-blur-xl border-b-2 border-matrix/50 shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
-        
         <div className="flex items-center gap-4 h-full">
-          {/* VVV INCREASED SIZE TO w-14 h-14 VVV */}
           <div className="relative w-14 h-14 my-1">
             <Image 
               src="/sgcoat.svg" 
@@ -81,7 +82,6 @@ export default function OverwatchDashboard() {
         </div>
       </header>
 
-      {/* Aside and Footer remain unchanged... */}
       <aside className="absolute right-0 top-20 bottom-0 w-80 md:w-96 bg-void/95 border-l-2 border-matrix/30 backdrop-blur-md z-40 flex flex-col shadow-[-5px_0_15px_rgba(0,0,0,0.5)]">
         <div className="p-4 border-b-2 border-matrix/30 flex items-center justify-between bg-slate/80">
           <h2 className="font-bold flex items-center gap-3 text-sm tracking-wider"><Activity size={18} className="text-matrix" /> KINETIC FEED</h2>

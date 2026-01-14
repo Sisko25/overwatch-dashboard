@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const TACTICAL_CALLSIGNS = [
-  "IAF", "AIA", "ISRAEL", "GLF", "IRIAF", "EP-", "IRAN", "RSF", "RSA", "JOR", "JORDAN", "EGY", "QAF", "QATARI", "UAE",
+  "IAF", "AIA", "ISRAEL", "GLF", "IRIAF", "EP-", "IRAN", "RSF", "RSA", "JOR", "JORDAN", "EGY", "QAF", "QATARI", "UAEAF", "UNIFORCE", "SAUDI", "SAAF", "SUDAN", "VFA", "VFC", "CF", "CAF", "RCAF", "RCAF", "RAF", "ROYAL", "RNZAF", "NZAF", "SLAF",
   "IFC", "INDIAN", "U", "PAK", "PAF", "SHAHEEN", "BGL",
   "PLAAF", "ROCAF", "ROC", "ROK", "ROKAF", "KAF", "JF", "JASDF", "SINGA", "RSAF", "ASY", "AUSSIE", "KOR", "MAS", "RMAF",
   "RFF", "RSD", "SUM", "TTF", "CHD", "RUBY", "CORAL", "UAF", "UKRAINE", "PLF", "POLISH", "BRF",
