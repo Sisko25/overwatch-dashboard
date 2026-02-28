@@ -106,7 +106,7 @@ export default function OverwatchDashboard() {
         </div>
       </aside>
       <footer className="absolute bottom-0 left-0 right-80 md:right-96 h-8 bg-slate/90 border-t border-matrix/50 z-40 flex items-center px-6 backdrop-blur-md">
-        <div className="flex items-center gap-2 text-[10px] font-mono opacity-70 tracking-widest uppercase"><Globe size={12} /> Global Monitoring Active // Secure Connection</div>
+        <div className="flex items-center gap-2 text-[10px] font-mono opacity-70 tracking-widest uppercase"><Globe size={12} /> Global Monitoring Active // Secure Connection // [SG] :: R E P U B L I C :: O F :: S I N G A P O R E ::</div>
       </footer>
     </main>
   );

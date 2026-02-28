@@ -6,14 +6,20 @@ import L from "leaflet";
 import { useEffect } from "react";
 
 // Trackers
-import AircraftTracker from "./AircraftTracker";
+
 import FireTracker from "./FireTracker";
 import EventTracker from "./EventTracker";
 import ISSTracker from "./ISSTracker"; 
+import TacticalLayer from "./TacticalLayer"; // <--- IMPORT THIS
+import EWJammingLayer from '@/components/EWJammingLayer';
+import OrbitalAssetsLayer from '@/components/OrbitalAssetsLayer';
+import CyberThreatLayer from '@/components/CyberThreatLayer';
+import FlightTrackerLayer from './FlightTrackerLayer';
 
-// --- LEAFLET ICON FIX (Keep this to prevent broken markers) ---
+// --- LEAFLET ICON FIX ---
 const iconFix = () => {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  // @ts-ignore
+  delete L.Icon.Default.prototype._getIconUrl;
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
     iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -33,7 +39,7 @@ export default function Map({ children }: { children?: React.ReactNode }) {
       <div className="absolute inset-0 pointer-events-none z-[1000] bg-grid-overlay bg-[size:40px_40px] opacity-10"></div>
       
       <MapContainer 
-        center={[20, 10]} // Slightly centered on the "Strategic Box"
+        center={[20, 10]} 
         zoom={3} 
         scrollWheelZoom={true} 
         zoomControl={false}
@@ -45,12 +51,19 @@ export default function Map({ children }: { children?: React.ReactNode }) {
         />
         
         {/* Standard Layers */}
-        <AircraftTracker />
+        
         <FireTracker />
         <EventTracker />
         <ISSTracker />
+        <EWJammingLayer /> 
+        <OrbitalAssetsLayer /> 
+        <CyberThreatLayer />
+        <FlightTrackerLayer />
+        
+        {/* New Military Base Data */}
+        <TacticalLayer /> 
 
-        {/* VVV RENDER CHILDREN HERE (This is where AIAnalystLayer goes) VVV */}
+        {/* VVV RENDER CHILDREN HERE (AIAnalystLayer) VVV */}
         {children}
         
         <ZoomControl position="bottomright" />
