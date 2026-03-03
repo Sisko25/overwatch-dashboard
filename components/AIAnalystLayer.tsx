@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import WarMonitor from './WarMonitor'; 
-import SatelliteTasker from './SatelliteTasker';
-import TacticalGlobe from './TacticalGlobe'; // <-- IMPORTING THE 3D GLOBE
+import TacticalGlobe from './TacticalGlobe'; // 3D GLOBE
+import SatelliteTasker from './SatelliteTasker'; // 3D COMPATIBLE TASKER
 
 // --- 1. DIRECT COUNTRY & BASE MAPPER ---
 const COUNTRY_MAP = [
@@ -29,7 +29,16 @@ const COUNTRY_MAP = [
 const MACRO_GULF_KEYWORDS = ["gulf", "us bases", "u.s. bases", "arab states", "middle east"];
 const GULF_COUNTRIES_TO_TRIGGER = ["BAHRAIN", "QATAR", "UAE", "KUWAIT", "SAUDI ARABIA"];
 
-interface AIEvent { lat: number; lng: number; title: string; description: string; date: string; exact_location_name?: string; isRaw?: boolean; isMissile?: boolean; }
+export interface AIEvent { 
+  lat: number; 
+  lng: number; 
+  title: string; 
+  description: string; 
+  date: string; 
+  exact_location_name?: string; 
+  isRaw?: boolean; 
+  isMissile?: boolean; 
+}
 
 // --- 2. SUB-COMPONENTS (UI Only) ---
 function TargetLock({ visible }: { visible: boolean }) {
@@ -69,7 +78,6 @@ function NewsTicker({ items }: { items: string[] }) {
 
 // --- 3. MAIN COMPONENT ---
 export default function AIAnalystLayer() {
-  const [aiEvents, setAiEvents] = useState<AIEvent[]>([]); 
   const [rawEvents, setRawEvents] = useState<AIEvent[]>([]); 
   const [missileTargets, setMissileTargets] = useState<{lat: number, lng: number}[]>([]);
   
@@ -172,18 +180,30 @@ export default function AIAnalystLayer() {
     } catch (e: any) { console.error("Analyst Failed:", e.message); } finally { setLoading(false); }
   };
 
-  const handleEventClick = (lat?: number, lng?: number) => { 
+  const handleTaskCommand = (lat?: number, lng?: number) => { 
     if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return; 
+    setTaskedCoords({lat, lng});
     setIsLocked(true);
     setTimeout(() => setIsLocked(false), 2000);
   };
+
+  // Attach a global listener so the 3D globe can trigger the Satellite Tasker
+  useEffect(() => {
+    const handleGlobeClick = (e: any) => {
+      if (e.detail && e.detail.lat && e.detail.lng) {
+        handleTaskCommand(e.detail.lat, e.detail.lng);
+      }
+    };
+    window.addEventListener('tactical-target-click', handleGlobeClick);
+    return () => window.removeEventListener('tactical-target-click', handleGlobeClick);
+  }, []);
 
   useEffect(() => { runAnalysis(); }, []);
   const tickerItems = useMemo(() => rawEvents.length > 0 ? rawEvents.map(e => `[${e.title?.toUpperCase()}] ${e.description.split('\n')[0].replace('• ', '')}`) : ["SATELLITE DOWNLINK ESTABLISHED..."], [rawEvents]);
 
   return (
     <>
-      {/* 3D GLOBE RENDERER */}
+      {/* 3D GLOBE RENDERER - Notice onEventClick is removed */}
       <TacticalGlobe events={rawEvents} missileTargets={missileTargets} />
 
       {/* UI OVERLAYS */}
@@ -216,7 +236,7 @@ export default function AIAnalystLayer() {
                </h5>
                {rawEvents.length === 0 && <div className="text-[9px] text-gray-500 italic">Awaiting kinetic data...</div>}
                {rawEvents.map((evt, i) => (
-                 <div key={`raw-${i}`} onClick={() => handleEventClick(evt.lat, evt.lng)} className={`mb-2 border-l pl-3 py-1 hover:bg-white/5 transition cursor-pointer ${evt.isMissile ? 'border-orange-500/50' : 'border-red-900'}`}>
+                 <div key={`raw-${i}`} onClick={() => handleTaskCommand(evt.lat, evt.lng)} className={`mb-2 border-l pl-3 py-1 hover:bg-white/5 transition cursor-pointer ${evt.isMissile ? 'border-orange-500/50' : 'border-red-900'}`}>
                    <div className={`text-[10px] font-bold truncate ${evt.isMissile ? 'text-orange-400' : 'text-red-400'}`}>{evt.title}</div>
                  </div>
                ))}

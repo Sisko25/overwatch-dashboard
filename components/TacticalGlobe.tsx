@@ -5,19 +5,11 @@ import dynamic from 'next/dynamic';
 
 const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
-interface Satellite {
-  id: string;
-  type: string;
-  lat: number;
-  lng: number;
-  alt: number; 
-}
-
 export default function TacticalGlobe({ events, missileTargets }: { events: any[], missileTargets: any[] }) {
   const globeEl = useRef<any>(null);
-  const [satellites, setSatellites] = useState<Satellite[]>([]);
+  const [satellites, setSatellites] = useState<any[]>([]);
 
-  // THE ORBITAL ENGINE
+  // THE ORBITAL ENGINE (Simple Array)
   useEffect(() => {
     let animationFrameId: number;
     let start = Date.now();
@@ -25,10 +17,9 @@ export default function TacticalGlobe({ events, missileTargets }: { events: any[
     const updateSatellites = () => {
       const time = (Date.now() - start) / 15000; 
       setSatellites([
-        { id: 'USA-224', type: 'KH-11', lat: Math.sin(time) * 45, lng: (time * 70) % 360 - 180, alt: 0.2 },
-        { id: 'COSMOS-2542', type: 'INSPECTOR', lat: Math.cos(time + 1) * 60, lng: ((time + 1) * 60) % 360 - 180, alt: 0.3 },
-        { id: 'ZHUHAI-1', type: 'HYPERSPECTRAL', lat: Math.sin(time + 2) * -30, lng: ((time + 2) * 80) % 360 - 180, alt: 0.15 },
-        { id: 'USA-276', type: 'RADAR', lat: Math.cos(time + 3) * 70, lng: ((time + 3) * 50) % 360 - 180, alt: 0.25 },
+        { id: 'USA-224', type: 'KH-11', lat: Math.sin(time) * 45, lng: (time * 70) % 360 - 180, alt: 0.2, isSatellite: true },
+        { id: 'COSMOS-2542', type: 'INSPECTOR', lat: Math.cos(time + 1) * 60, lng: ((time + 1) * 60) % 360 - 180, alt: 0.3, isSatellite: true },
+        { id: 'ZHUHAI-1', type: 'HYPERSPECTRAL', lat: Math.sin(time + 2) * -30, lng: ((time + 2) * 80) % 360 - 180, alt: 0.15, isSatellite: true }
       ]);
       animationFrameId = requestAnimationFrame(updateSatellites);
     };
@@ -37,21 +28,25 @@ export default function TacticalGlobe({ events, missileTargets }: { events: any[
     return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
+  // GLOBE CONFIGURATION
   useEffect(() => {
     if (globeEl.current) {
-      // Small timeout ensures the WebGL canvas is fully painted before manipulating controls
       setTimeout(() => {
         if (globeEl.current) {
-           globeEl.current.controls().autoRotate = true;
-           globeEl.current.controls().autoRotateSpeed = 0.5;
-           globeEl.current.pointOfView({ lat: 30, lng: 45, altitude: 2.5 }); 
+           // THIS FIXES THE CONSTANT SPINNING - Set autoRotate to false
+           globeEl.current.controls().autoRotate = false;
+           globeEl.current.pointOfView({ lat: 30, lng: 45, altitude: 2.0 }); 
         }
       }, 100);
     }
   }, []);
 
-  // Memoize the combined data to prevent aggressive re-renders of the HTML layers
-  const htmlData = useMemo(() => [...events, ...satellites], [events, satellites]);
+  // Combine events and satellites for rendering
+  const htmlData = useMemo(() => {
+     // Filter out any events that don't have valid coordinates to prevent crashes
+     const validEvents = events.filter(e => typeof e.lat === 'number' && typeof e.lng === 'number' && !isNaN(e.lat) && !isNaN(e.lng));
+     return [...validEvents, ...satellites];
+  }, [events, satellites]);
 
   return (
     <div className="absolute inset-0 z-0 bg-black cursor-crosshair">
@@ -61,8 +56,8 @@ export default function TacticalGlobe({ events, missileTargets }: { events: any[
         backgroundColor="#000000"
         
         arcsData={missileTargets}
-        arcStartLat={(d: any) => d.lat + 10} 
-        arcStartLng={(d: any) => d.lng + 10}
+        arcStartLat={(d: any) => d.lat + 5} 
+        arcStartLng={(d: any) => d.lng + 5}
         arcEndLat={(d: any) => d.lat}
         arcEndLng={(d: any) => d.lng}
         arcColor={() => '#f97316'} 
@@ -72,26 +67,32 @@ export default function TacticalGlobe({ events, missileTargets }: { events: any[
 
         htmlElementsData={htmlData}
         htmlElement={(d: any) => {
-          // The fix: We must return a generic HTML wrapper div. 
-          // react-globe.gl applies __data to THIS element.
           const el = document.createElement('div');
-          // Add a generic class to prevent React from getting confused
-          el.className = 'globe-html-marker'; 
           
-          if (d.alt) {
+          if (d.isSatellite) {
+            // SATELLITE MARKER
             el.innerHTML = `
-              <div class="pointer-events-none flex flex-col items-center group transition-transform hover:scale-150">
-                <div class="text-[8px] font-mono text-cyan-400 bg-black/60 border border-cyan-500/30 px-1 mb-1 whitespace-nowrap">
+              <div class="pointer-events-none flex flex-col items-center">
+                <div class="text-[8px] font-mono text-cyan-400 bg-black/80 border border-cyan-500/30 px-1 mb-1 whitespace-nowrap">
                   ${d.id} [${d.type}]
                 </div>
-                <div class="w-1.5 h-1.5 bg-cyan-400 rounded-full shadow-[0_0_8px_#22d3ee]"></div>
-                <div class="absolute top-2 w-[1px] h-20 bg-gradient-to-b from-cyan-400/50 to-transparent"></div>
+                <div class="w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_#22d3ee]"></div>
               </div>
             `;
           } else if (d.isMissile) {
+            // MISSILE IMPACT MARKER
             el.innerHTML = `<div class="relative flex items-center justify-center w-6 h-6"><div class="absolute w-full h-full bg-orange-500 rounded-full animate-ping opacity-75"></div><div class="relative w-3 h-3 bg-orange-600 rounded-full border border-white shadow-[0_0_10px_#f97316]"></div></div>`;
           } else {
-            el.innerHTML = `<div class="relative flex flex-col items-center justify-center w-8 h-12 -mt-6 pointer-events-auto cursor-pointer"><div class="animate-bounce flex flex-col items-center"><div class="w-4 h-6 bg-red-600 border border-red-900 shadow-[0_0_10px_#ef4444]" style="clip-path: polygon(50% 100%, 0 0, 100% 0);"></div><div class="w-1.5 h-1.5 bg-white rounded-full mt-1 shadow-[0_0_5px_#fff]"></div></div></div>`;
+            // KINETIC EVENT MARKER (Clickable)
+            el.style.cursor = 'pointer';
+            el.style.pointerEvents = 'auto'; // Ensure it can be clicked
+            el.innerHTML = `<div class="relative flex flex-col items-center justify-center w-8 h-12 -mt-6 hover:scale-110 transition-transform"><div class="animate-bounce flex flex-col items-center"><div class="w-4 h-6 bg-red-600 border border-red-900 shadow-[0_0_10px_#ef4444]" style="clip-path: polygon(50% 100%, 0 0, 100% 0);"></div><div class="w-1.5 h-1.5 bg-white rounded-full mt-1 shadow-[0_0_5px_#fff]"></div></div></div>`;
+            
+            // Re-attach the click event directly to the DOM element
+            el.onclick = () => {
+              console.log("Clicked Coordinates:", d.lat, d.lng);
+              // You can expand this later to trigger the SatelliteTasker!
+            };
           }
           
           return el;
