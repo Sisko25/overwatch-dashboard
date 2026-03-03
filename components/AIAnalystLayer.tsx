@@ -1,14 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { Marker, Popup, useMap, useMapEvent } from 'react-leaflet';
-import L from 'leaflet';
 import WarMonitor from './WarMonitor'; 
 import SatelliteTasker from './SatelliteTasker';
+import TacticalGlobe from './TacticalGlobe'; // <-- IMPORTING THE 3D GLOBE
 
 // --- 1. DIRECT COUNTRY & BASE MAPPER ---
-// No regex, just straightforward arrays of keywords.
 const COUNTRY_MAP = [
   { name: "BAHRAIN", lat: 26.2062, lng: 50.6065, keywords: ["bahrain", "manama", "fifth fleet", "nsa bahrain"] },
   { name: "QATAR", lat: 25.1184, lng: 51.3146, keywords: ["qatar", "doha", "al udeid"] },
@@ -20,32 +17,21 @@ const COUNTRY_MAP = [
   { name: "ISRAEL", lat: 31.0461, lng: 34.8516, keywords: ["israel", "tel aviv", "jerusalem", "haifa", "nevatim", "ramat david"] },
   { name: "GAZA / WEST BANK", lat: 31.5017, lng: 34.4668, keywords: ["gaza", "rafah", "west bank"] },
   { name: "LEBANON", lat: 33.8547, lng: 35.8623, keywords: ["lebanon", "beirut", "hezbollah"] },
-  { name: "YEMEN", lat: 15.3694, lng: 44.1910, keywords: ["yemen", "sanaa", "houthi", "hodeidah"] },
+  { name: "YEMEN", lat: 15.3694, lng: 44.1910, keywords: ["yemen", "sanaa", "houthi", "hodeidah", "sana'a"] },
   { name: "SYRIA", lat: 33.5138, lng: 36.2765, keywords: ["syria", "damascus", "hmeimim", "aleppo"] },
   { name: "IRAQ", lat: 33.3152, lng: 44.3661, keywords: ["iraq", "baghdad", "al asad", "erbil", "jurf"] },
   { name: "PAKISTAN", lat: 33.6844, lng: 73.0479, keywords: ["pakistan", "islamabad", "khyber", "balochistan"] },
   { name: "AFGHANISTAN", lat: 34.5553, lng: 69.2075, keywords: ["afghanistan", "kabul"] },
   { name: "JORDAN", lat: 31.9454, lng: 35.9284, keywords: ["jordan", "amman"] },
-  { name: "USA", lat: 38.9072, lng: -77.0369, keywords: ["usa", "united states", "washington"] } // Stripped from headlines if it's "Washington Post"
+  { name: "USA", lat: 38.9072, lng: -77.0369, keywords: ["usa", "united states"] } 
 ];
 
-// If the headline mentions the entire region, light up all allied bases
 const MACRO_GULF_KEYWORDS = ["gulf", "us bases", "u.s. bases", "arab states", "middle east"];
 const GULF_COUNTRIES_TO_TRIGGER = ["BAHRAIN", "QATAR", "UAE", "KUWAIT", "SAUDI ARABIA"];
 
-// --- 2. ICONS ---
-const redIcon = L.divIcon({ className: 'bg-transparent', html: `<div class="relative flex items-center justify-center w-6 h-6"><div class="absolute w-full h-full bg-red-500 rounded-full animate-ping opacity-75"></div><div class="relative w-3 h-3 bg-red-600 rounded-full border border-white shadow-lg"></div></div>`, iconSize: [24, 24], iconAnchor: [12, 12] });
-const orangeIcon = L.divIcon({ className: 'bg-transparent', html: `<div class="relative flex items-center justify-center w-6 h-6"><div class="absolute w-full h-full bg-orange-500 rounded-full animate-ping opacity-75"></div><div class="relative w-3 h-3 bg-orange-600 rounded-full border border-white shadow-[0_0_10px_#f97316]"></div></div>`, iconSize: [24, 24], iconAnchor: [12, 12] });
-const redArrowIcon = L.divIcon({ 
-  className: 'bg-transparent', 
-  html: `<div class="relative flex flex-col items-center justify-center w-8 h-12 -mt-6"><div class="animate-bounce flex flex-col items-center"><div class="w-4 h-6 bg-red-600 border border-red-900 shadow-[0_0_10px_#ef4444]" style="clip-path: polygon(50% 100%, 0 0, 100% 0);"></div><div class="w-1.5 h-1.5 bg-white rounded-full mt-1 shadow-[0_0_5px_#fff]"></div></div></div>`, 
-  iconSize: [32, 48], 
-  iconAnchor: [16, 48] 
-});
-
 interface AIEvent { lat: number; lng: number; title: string; description: string; date: string; exact_location_name?: string; isRaw?: boolean; isMissile?: boolean; }
 
-// --- 3. SUB-COMPONENTS ---
+// --- 2. SUB-COMPONENTS (UI Only) ---
 function TargetLock({ visible }: { visible: boolean }) {
   if (!visible) return null;
   return (
@@ -81,76 +67,8 @@ function NewsTicker({ items }: { items: string[] }) {
   );
 }
 
-function GlobalMissileRain({ targets }: { targets: { lat: number, lng: number }[] }) {
-  const map = useMap();
-  const [progress, setProgress] = useState(0);
-  const [, setTick] = useState(0); 
-
-  useMapEvent('move', () => setTick(t => t + 1));
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      let start = Date.now();
-      const animate = () => {
-        const p = Math.min((Date.now() - start) / 1500, 1);
-        setProgress(p);
-        if (p < 1) requestAnimationFrame(animate);
-        else setTimeout(() => setProgress(0), 1000); 
-      };
-      requestAnimationFrame(animate);
-    }, 5000); 
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  const safeTargets = targets.filter(t => typeof t.lat === 'number' && typeof t.lng === 'number' && !isNaN(t.lat) && !isNaN(t.lng));
-  if (progress === 0 || safeTargets.length === 0) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 pointer-events-none z-[9999]" style={{ width: '100vw', height: '100vh' }}>
-      <svg width="100%" height="100%">
-        {safeTargets.map((t, i) => {
-          const end = map.latLngToContainerPoint([t.lat, t.lng]);
-          const offset = i % 2 === 0 ? 200 : -200;
-          const startX = end.x + offset; 
-          const startY = end.y - 600; 
-          
-          const currentX = startX + (end.x - startX) * progress;
-          const currentY = startY + (end.y - startY) * progress;
-
-          return (
-            <g key={`missile-${i}`}>
-              {progress < 1 ? (
-                <>
-                  <line x1={startX} y1={startY} x2={currentX} y2={currentY} stroke="url(#missileGradient)" strokeWidth="4" strokeLinecap="round" />
-                  <circle cx={currentX} cy={currentY} r="5" fill="#ffffff" stroke="#f97316" strokeWidth="2" className="animate-pulse" />
-                </>
-              ) : (
-                <g transform={`translate(${end.x},${end.y})`}>
-                  <circle r="40" fill="rgba(239, 68, 68, 0.4)" className="animate-ping" />
-                  <circle r="15" fill="#dc2626" />
-                  <circle r="6" fill="#fb923c" />
-                </g>
-              )}
-            </g>
-          );
-        })}
-        <defs>
-          <linearGradient id="missileGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="transparent" />
-            <stop offset="100%" stopColor="#f97316" />
-          </linearGradient>
-        </defs>
-      </svg>
-    </div>,
-    document.body
-  );
-}
-
-// --- MAIN COMPONENT ---
+// --- 3. MAIN COMPONENT ---
 export default function AIAnalystLayer() {
-  const map = useMap(); 
-  
   const [aiEvents, setAiEvents] = useState<AIEvent[]>([]); 
   const [rawEvents, setRawEvents] = useState<AIEvent[]>([]); 
   const [missileTargets, setMissileTargets] = useState<{lat: number, lng: number}[]>([]);
@@ -161,7 +79,6 @@ export default function AIAnalystLayer() {
   const [isLocked, setIsLocked] = useState(false);
   const [taskedCoords, setTaskedCoords] = useState<{lat: number, lng: number} | null>(null);
 
-  // BRUTE FORCE EXTRACTION: Read Headline -> Find Country -> Add Marker
   const extractRawKineticEvents = (rawFeed: string) => {
     const lines = rawFeed.split('\n');
     const newRawEvents: AIEvent[] = [];
@@ -170,31 +87,22 @@ export default function AIAnalystLayer() {
       let cleanTitle = line.replace(/\[SRC:.*?\]/g, '').trim();
       if (!cleanTitle) return;
 
-      // Force lowercase
       let analysisText = cleanTitle.toLowerCase();
-      
-      // Fix specific punctuation issues immediately (u.a.e -> uae)
       analysisText = analysisText.replace(/u\.a\.e\.?/g, 'uae');
       analysisText = analysisText.replace(/u\.s\.?/g, 'us');
-      analysisText = analysisText.replace(/['’]s/g, 's'); // "uae's" -> "uaes"
+      analysisText = analysisText.replace(/['’]s/g, 's'); 
+      analysisText = analysisText.replace(/washington post|new york times|wall street journal|jerusalem post|arab news|gulf news|times of israel|al jazeera|dimsum daily|times kuwait|reuters|ap news|wsj|bloomberg/gi, '');
 
-      // Completely remove news sources so "Washington Post" doesn't trigger "USA"
-      analysisText = analysisText.replace(/washington post|new york times|wall street journal|jerusalem post|arab news|gulf news|times of israel|al jazeera|dimsum daily|times kuwait|reuters|ap news|wsj|bloomberg|dw\.com/gi, '');
-
-      // Identify if it's a missile attack based on raw string check
       const isMissile = analysisText.includes('missile') || analysisText.includes('rocket') || analysisText.includes('ballistic') || analysisText.includes('drone') || analysisText.includes('uav') || analysisText.includes('air defense');
 
       const triggeredLocations = new Set<typeof COUNTRY_MAP[0]>();
 
-      // 1. EXACT COUNTRY MATCHING
       COUNTRY_MAP.forEach(country => {
-        // If ANY of the country's keywords are in the headline, add it to the trigger list
         if (country.keywords.some(kw => analysisText.includes(kw))) {
           triggeredLocations.add(country);
         }
       });
 
-      // 2. MACRO-REGION MULTIPLIER (e.g., if it says "Gulf", light up all Gulf states)
       if (MACRO_GULF_KEYWORDS.some(kw => analysisText.includes(kw))) {
         COUNTRY_MAP.forEach(country => {
           if (GULF_COUNTRIES_TO_TRIGGER.includes(country.name)) {
@@ -203,7 +111,6 @@ export default function AIAnalystLayer() {
         });
       }
 
-      // Create the markers for every country triggered
       triggeredLocations.forEach(country => {
         const existing = newRawEvents.find(e => e.lat === country.lat && e.lng === country.lng);
         
@@ -244,13 +151,11 @@ export default function AIAnalystLayer() {
       let fetchedRawEvents: AIEvent[] = [];
       if (data.rawFeed) {
         setRawFeedText(data.rawFeed);
-        // Uses the new Brute Force Headline Reader
         fetchedRawEvents = extractRawKineticEvents(data.rawFeed);
       }
       
       setRawEvents(fetchedRawEvents);
 
-      // Create missiles array for the animation overlay
       const targets = fetchedRawEvents
         .filter(e => e.isMissile || (e.title && e.title.toUpperCase().includes('MISSILE')))
         .map(e => ({ lat: e.lat, lng: e.lng }))
@@ -269,7 +174,6 @@ export default function AIAnalystLayer() {
 
   const handleEventClick = (lat?: number, lng?: number) => { 
     if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return; 
-    map.flyTo([lat, lng], 11, { animate: true, duration: 1.5 }); 
     setIsLocked(true);
     setTimeout(() => setIsLocked(false), 2000);
   };
@@ -279,14 +183,15 @@ export default function AIAnalystLayer() {
 
   return (
     <>
+      {/* 3D GLOBE RENDERER */}
+      <TacticalGlobe events={rawEvents} missileTargets={missileTargets} />
+
+      {/* UI OVERLAYS */}
       {loading && <DigitalRain />}
       <TargetLock visible={isLocked} />
       <NewsTicker items={tickerItems} />
-      
-      <GlobalMissileRain targets={missileTargets} />
 
       <div className="absolute top-24 left-6 z-[1000] w-80 flex flex-col gap-4 pointer-events-none">
-        
         <div className="bg-black/90 backdrop-blur-md border border-white/10 p-4 rounded text-white shadow-2xl font-mono flex flex-col max-h-[500px] pointer-events-auto">
            <div className="flex justify-between items-center mb-3 flex-shrink-0">
              <h4 className="text-[10px] text-blue-400 font-bold tracking-widest italic">AI OVERWATCH // SITREP</h4>
@@ -325,27 +230,6 @@ export default function AIAnalystLayer() {
           <WarMonitor events={rawEvents} rawIntel={rawFeedText} />
         </div>
       </div>
-
-      {/* RENDER RAW FEED (Red Arrows & Orange Missiles) */}
-      {rawEvents.map((evt, idx) => (
-        evt.lat != null && evt.lng != null && !isNaN(evt.lat) && !isNaN(evt.lng) && (
-          <Marker key={`rawevt-${idx}`} position={[evt.lat, evt.lng]} icon={evt.isMissile ? orangeIcon : redArrowIcon} zIndexOffset={1000} eventHandlers={{ click: () => handleEventClick(evt.lat, evt.lng) }}>
-            <Popup>
-              <div className={`bg-black text-white p-2 text-xs min-w-[250px] border ${evt.isMissile ? 'border-orange-500/50' : 'border-red-900'}`}>
-                <div className={`flex items-center gap-2 mb-2 border-b pb-1 ${evt.isMissile ? 'border-orange-500/50' : 'border-red-900'}`}>
-                  <span className={`w-1.5 h-1.5 ${evt.isMissile ? 'bg-orange-500 rounded-full animate-pulse' : 'bg-red-600'}`}></span>
-                  <strong className={`text-[10px] tracking-widest ${evt.isMissile ? 'text-orange-400' : 'text-red-500'}`}>
-                    {evt.isMissile ? "MISSILE INTERCEPT" : "RAW KINETIC POINTER"}
-                  </strong>
-                </div>
-                <h3 className="font-bold text-xs text-white">{evt.title}</h3>
-                <div className="text-gray-400 text-[10px] mt-2 leading-relaxed whitespace-pre-wrap font-mono">{evt.description}</div>
-                <button onClick={() => setTaskedCoords({ lat: evt.lat, lng: evt.lng })} className="mt-3 w-full border border-cyan-500 text-cyan-400 hover:bg-cyan-900/50 py-1 font-mono text-[9px] tracking-widest transition">[ 🛰️ TASK SATELLITE ]</button>
-              </div>
-            </Popup>
-          </Marker>
-        )
-      ))}
 
       {taskedCoords && (
         <SatelliteTasker 

@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
 
 interface SatelliteProps {
   lat: number;
@@ -21,6 +19,10 @@ export default function SatelliteTasker({ lat, lng, onClose }: SatelliteProps) {
     ];
     return () => sequence.forEach(clearTimeout);
   }, []);
+
+  // ArcGIS World Imagery REST API URL for the specific target
+  // We use a zoom level of 17 for high-res tactical detail
+  const imageryUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/17/${Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, 17))}/${Math.floor((lng + 180) / 360 * Math.pow(2, 17))}`;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto" onClick={onClose}>
@@ -53,32 +55,24 @@ export default function SatelliteTasker({ lat, lng, onClose }: SatelliteProps) {
           {/* Radar Visual */}
           <div className="h-40 bg-black border border-cyan-900 relative overflow-hidden flex items-center justify-center">
             {step < 3 ? (
-               // Scanning Animation
                <div className="absolute inset-0 flex items-center justify-center bg-cyan-950/20">
                  <div className="w-32 h-32 border border-cyan-500/30 rounded-full"></div>
                  <div className="w-16 h-16 border border-cyan-500/50 rounded-full absolute animate-ping"></div>
                  <div className="w-[1px] h-full bg-cyan-500/50 absolute animate-spin" style={{ transformOrigin: 'center' }}></div>
                </div>
             ) : (
-               // ACTUAL SATELLITE IMAGERY (Esri World Imagery)
                <div className="w-full h-full relative group">
-                 {/* Map Layer */}
-                 <div className="absolute inset-0 grayscale contrast-125 sepia hue-rotate-[180deg] saturate-200">
-                    <MapContainer 
-                        center={[lat, lng]} 
-                        zoom={14} 
-                        zoomControl={false} 
-                        dragging={false} 
-                        scrollWheelZoom={false}
-                        doubleClickZoom={false}
-                        style={{ width: '100%', height: '100%' }}
-                    >
-                      <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
-                    </MapContainer>
+                 {/* 3D-COMPATIBLE IMAGE LAYER */}
+                 <div 
+                    className="absolute inset-0 bg-cover bg-center grayscale contrast-125 sepia hue-rotate-[180deg] saturate-200"
+                    style={{ backgroundImage: `url('https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=800&q=80')` }} 
+                 >
+                    {/* Inner Overlay for the 'Targeted' look */}
+                    <div className="absolute inset-0 bg-cyan-900/20 mix-blend-overlay"></div>
                  </div>
                  
-                 {/* Visual Overlays (Scanlines and Targeting reticle) */}
-                 <div className="absolute inset-0 bg-gradient-to-t from-cyan-900/50 to-transparent mix-blend-overlay z-[1000] pointer-events-none"></div>
+                 {/* Visual Overlays */}
+                 <div className="absolute inset-0 bg-gradient-to-t from-cyan-900/50 to-transparent z-[1000] pointer-events-none"></div>
                  <div className="absolute inset-0 opacity-20 pointer-events-none z-[1000]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(6,182,212,1) 2px, rgba(6,182,212,1) 4px)' }}></div>
                  
                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center z-[1000] pointer-events-none">

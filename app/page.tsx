@@ -7,15 +7,10 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import LoadingScreen from '@/components/LoadingScreen';
 
-// 🔴 FIX: Dynamically import AIAnalystLayer to prevent "window is not defined" error
-const AIAnalystLayer = dynamic(() => import('@/components/AIAnalystLayer'), { 
-  ssr: false 
-});
-
-// Map loading state
+// 1. DYNAMICALLY LOAD ONLY THE MAP COMPONENT
 const MapComponent = dynamic(() => import('@/components/Map'), { 
   ssr: false,
-  loading: () => <div className="h-full w-full bg-void flex items-center justify-center text-matrix animate-pulse font-mono tracking-widest">INITIALIZING MAP DATA...</div>
+  loading: () => <div className="h-full w-full bg-void flex items-center justify-center text-matrix animate-pulse font-mono tracking-widest">INITIALIZING GLOBAL OSINT DATA...</div>
 });
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
@@ -49,13 +44,12 @@ export default function OverwatchDashboard() {
 
   return (
     <main className="relative min-h-screen bg-void overflow-hidden text-matrix selection:bg-matrix selection:text-void">
-      {/* 2. NEST THE AI LAYER INSIDE THE MAP COMPONENT */}
+      {/* 2. THE MAP ENGINE SITS AT THE VERY BOTTOM LAYER (Z-0) */}
       <div className="absolute inset-0 z-0">
-        <MapComponent>
-          <AIAnalystLayer />
-        </MapComponent>
+         <MapComponent />
       </div>
       
+      {/* 3. THE UI LIVES ON TOP OF THE MAP */}
       <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-1 bg-slate/90 backdrop-blur-xl border-b-2 border-matrix/50 shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
         <div className="flex items-center gap-4 h-full">
           <div className="relative w-14 h-14 my-1">

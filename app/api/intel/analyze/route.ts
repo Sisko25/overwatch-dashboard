@@ -12,7 +12,14 @@ async function fetchOSINT() {
     { name: "r/CredibleDefense", url: "https://www.reddit.com/r/CredibleDefense/new/.rss" },
     { name: "r/UkraineWarVideoReport", url: "https://www.reddit.com/r/UkraineWarVideoReport/new/.rss" },
     { name: "GDELT: USA-IRN", url: "https://api.gdeltproject.org/api/v2/doc/doc?query=(USA%20OR%20Biden)%20AND%20(Iran%20OR%20Tehran)&mode=artlist&maxrecords=10&format=rss&sort=datedesc" },
-    { name: "GDELT: ISR-IRN", url: "https://api.gdeltproject.org/api/v2/doc/doc?query=(Israel%20OR%20IDF)%20AND%20(Iran%20OR%20Tehran%20OR%20Hezbollah)&mode=artlist&maxrecords=10&format=rss&sort=datedesc" }
+    { name: "GDELT: ISR-IRN", url: "https://api.gdeltproject.org/api/v2/doc/doc?query=(Israel%20OR%20IDF)%20AND%20(Iran%20OR%20Tehran%20OR%20Hezbollah)&mode=artlist&maxrecords=10&format=rss&sort=datedesc" },
+    { name: "TG: Rybar", url: "https://rsshub.app/telegram/channel/rybar" },
+    { name: "TG: Sabereen", url: "https://rsshub.app/telegram/channel/sabereennews" },
+    { name: "TG: BellumActa", url: "https://rsshub.app/telegram/channel/BellumActaNews" },
+    { name: "TG: IDF", url: "https://rsshub.app/telegram/channel/idfofficial" },
+    { name: "X: OSINTtechnical", url: "https://rsshub.app/twitter/user/OSINTtechnical" },
+    { name: "X: Faytuks", url: "https://rsshub.app/twitter/user/Faytuks" },
+    { name: "X: AuroraIntel", url: "https://rsshub.app/twitter/user/AuroraIntel" },
   ];
 
   try {
