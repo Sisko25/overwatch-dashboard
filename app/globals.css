@@ -36,3 +36,32 @@ body {
 ::-webkit-scrollbar-track { background: #020617; }
 ::-webkit-scrollbar-thumb { background: #1e293b; border: 1px solid #00ff9d; }
 
+/* LEAFLET TACTICAL OVERRIDES */
+.leaflet-container {
+  background-color: #000000 !important;
+  font-family: monospace;
+}
+
+.animated-laser {
+  animation: laser-dash 10s linear infinite;
+}
+
+@keyframes laser-dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+/* NORAD ACTIVE ALERT ANIMATION */
+@keyframes norad-flash {
+  0% { box-shadow: inset 0 0 0px rgba(239, 68, 68, 0); border-color: transparent; }
+  50% { box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.3); border-color: #ef4444; }
+  100% { box-shadow: inset 0 0 0px rgba(239, 68, 68, 0); border-color: transparent; }
+}
+
+.norad-active {
+  animation: norad-flash 1.5s ease-in-out infinite;
+  border: 2px solid #ef4444;
+  transition: all 0.3s ease;
+}
+

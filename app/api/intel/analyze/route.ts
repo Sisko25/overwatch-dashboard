@@ -1,105 +1,103 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-async function fetchOSINT() {
-  const sources = [
-    { name: "G-NEWS: World", url: "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en" },
-    { name: "G-NEWS: MidEast", url: "https://news.google.com/rss/search?q=Israel+OR+Iran+OR+Bahrain+OR+UAE+OR+Kuwait+OR+Qatar+strike+OR+missile&hl=en-US&gl=US&ceid=US:en" },
-    { name: "TG: Rybar (RUS)", url: "https://rsshub.app/telegram/channel/rybar" },
-    { name: "TG: DeepState (UKR)", url: "https://rsshub.app/telegram/channel/DeepStateUA" },
-    { name: "TG: IDF (ISR)", url: "https://rsshub.app/telegram/channel/idfofficial" },
-    { name: "TG: Sabereen (IRN)", url: "https://rsshub.app/telegram/channel/sabereennews" },
-    { name: "r/CredibleDefense", url: "https://www.reddit.com/r/CredibleDefense/new/.rss" },
-    { name: "r/UkraineWarVideoReport", url: "https://www.reddit.com/r/UkraineWarVideoReport/new/.rss" },
-    { name: "GDELT: USA-IRN", url: "https://api.gdeltproject.org/api/v2/doc/doc?query=(USA%20OR%20Biden)%20AND%20(Iran%20OR%20Tehran)&mode=artlist&maxrecords=10&format=rss&sort=datedesc" },
-    { name: "GDELT: ISR-IRN", url: "https://api.gdeltproject.org/api/v2/doc/doc?query=(Israel%20OR%20IDF)%20AND%20(Iran%20OR%20Tehran%20OR%20Hezbollah)&mode=artlist&maxrecords=10&format=rss&sort=datedesc" },
-    { name: "TG: Rybar", url: "https://rsshub.app/telegram/channel/rybar" },
-    { name: "TG: Sabereen", url: "https://rsshub.app/telegram/channel/sabereennews" },
-    { name: "TG: BellumActa", url: "https://rsshub.app/telegram/channel/BellumActaNews" },
-    { name: "TG: IDF", url: "https://rsshub.app/telegram/channel/idfofficial" },
-    { name: "X: OSINTtechnical", url: "https://rsshub.app/twitter/user/OSINTtechnical" },
-    { name: "X: Faytuks", url: "https://rsshub.app/twitter/user/Faytuks" },
-    { name: "X: AuroraIntel", url: "https://rsshub.app/twitter/user/AuroraIntel" },
-  ];
-
+// 1. THE NEWS DATALINK
+async function fetchHighTrustOSINT() {
+  const query = encodeURIComponent('(Iran OR Israel OR Houthi OR Hezbollah) (strike OR missile OR attack OR drone) (site:reuters.com OR site:timesofisrael.com OR site:tehrantimes.com) when:1d');
+  const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
   try {
-    const feedPromises = sources.map(async (source) => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); 
-        const res = await fetch(source.url, { 
-          next: { revalidate: 60 },
-          signal: controller.signal,
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; OverwatchMonitor/3.0;)" }
-        });
-        clearTimeout(timeoutId);
-        if (!res.ok) return "";
-        const text = await res.text();
-        const items = text.match(/<item>[\s\S]*?<\/item>/g) || [];
-        
-        return items.slice(0, 12).map(item => {
-          const titleMatch = item.match(/<title>(.*?)<\/title>/);
-          const title = titleMatch ? titleMatch[1].replace(" - GDELT Project", "").replace(/<!\[CDATA\[|\]\]>/g, "") : "Report";
-          return `[SRC: ${source.name}] ${title}`;
-        }).join("\n");
-      } catch (e) { return ""; }
+    const res = await fetch(url, { next: { revalidate: 60 } });
+    if (!res.ok) return "";
+    const text = await res.text();
+    const items = text.match(/<item>[\s\S]*?<\/item>/g) || [];
+    return items.slice(0, 15).map(item => {
+      const titleMatch = item.match(/<title[^>]*>(.*?)<\/title>/);
+      return titleMatch ? titleMatch[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") : "";
+    }).join("\n");
+  } catch (e) { return ""; }
+}
+
+// 2. THE FLIGHT DATA DATALINK (The Bridge)
+async function fetchADSBData() {
+  const apiKey = process.env.ADSB_EXCHANGE_API_KEY;
+  
+  // If you don't have the $100/mo API key, inject simulated transponder data for the AI to read
+  if (!apiKey) {
+    return `[SIMULATED ADSB FEED - MIDDLE EAST BOUNDING BOX]
+    - Callsign: AE0414 | Type: KC-135 Stratotanker | Status: Loitering over Qatar
+    - Callsign: AE0137 | Type: KC-135 Stratotanker | Status: Loitering over UAE
+    - Callsign: ZZ664  | Type: RC-135W Rivet Joint (EW/Recon) | Status: Patrolling Eastern Med`;
+  }
+
+  // Production ADSB code (Requires Premium API)
+  try {
+    const res = await fetch(`https://adsbexchange.com/api/aircraft/v2/lat/30/lon/45/dist/1000/`, {
+      headers: { 'api-auth': apiKey }
     });
-    const results = await Promise.all(feedPromises);
-    return results.filter(r => r.length > 0).join("\n");
-  } catch (e) { return null; }
+    const data = await res.json();
+    return data.ac.filter((a: any) => a.mil === 1).map((a: any) => 
+      `- Callsign: ${a.flight} | Type: ${a.t} | Status: Active at ${a.alt_baro}ft`
+    ).join("\n");
+  } catch (e) { return "ADSB LINK OFFLINE"; }
 }
 
 export async function POST(req: Request) {
+  let cleanText = "{}";
+
   try {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return NextResponse.json({ error: "Missing API Key" }, { status: 500 });
 
-    const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: apiKey });
-    const rawIntel = await fetchOSINT();
-    
-    const systemPrompt = `You are an elite Military Intelligence AI. Analyze the live raw intel feed and output strictly JSON.
-    
-    CRITICAL RULES:
-    1. SITUATION REPORT: Write a concise, 2-3 sentence strategic summary explaining the major global flashpoints.
-    2. EXACT LOCATIONS: Extract the specific targets mentioned (e.g. "Fifth Fleet Bahrain", "Al Udeid Qatar", "Nevatim Airbase").
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-pro", 
+        generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+    });
 
-    JSON SCHEMA REQUIREMENT:
+    // Run both intelligence sweeps simultaneously for speed
+    const [rawNews, rawADSB] = await Promise.all([fetchHighTrustOSINT(), fetchADSBData()]);
+
+    const systemPrompt = `You are a Military Early Warning AI. 
+    Analyze the WIRE FEED and the ADSB FLIGHT DATA to correlate threats.
+    Do NOT invent data. If ADSB shows reconnaissance/refueling planes active at the same time the Wire Feed reports impending strikes, elevate the probability score.
+
+    SCHEMA:
     {
-      "situation_report": "Your 2-3 sentence strategic summary.",
-      "kinetic_events": [
+      "situation_report": "Brief strategic summary.",
+      "kinetic_events": [{ "title": "Headline", "lat": 0, "lng": 0, "isMissile": true }],
+      "trajectories": [{ "startLat": 0, "startLng": 0, "endLat": 0, "endLng": 0 }],
+      "detected_launches": [
         {
-          "title": "Headline",
-          "description": "Brief summary",
-          "exact_location_name": "Specific Facility or City (e.g., Al Asad Airbase)",
-          "isMissile": true 
+          "id": "THREAT-1",
+          "origin": "Country/Region",
+          "target": "Country/Region",
+          "alert_level": "CRITICAL", 
+          "threat_type": "Potential Coordinated Strike",
+          "probability_score": 85,
+          "reasoning": "Explain the correlation between the ADSB plane movements and the news reports."
         }
       ]
     }`;
     
-    const userContent = rawIntel 
-      ? `LIVE INTEL FEED:\n${rawIntel}\n\nTASK: Provide a situation report and extract exact kinetic target names.` 
-      : "Feed offline. Generate theoretical situation report.";
+    const combinedData = `WIRE FEED:\n${rawNews}\n\nADSB FLIGHT DATA:\n${rawADSB}`;
 
-    const completion = await client.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userContent }],
-      model: "deepseek-chat",
-      temperature: 0.2, 
-      response_format: { type: "json_object" }, 
+    const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: systemPrompt + "\n\n" + combinedData }] }]
     });
 
-    const content = completion.choices[0].message.content || "{}";
-    let parsedData: any = { situation_report: "", kinetic_events: [] };
-
-    try {
-      parsedData = JSON.parse(content);
-      if (!parsedData.kinetic_events || !Array.isArray(parsedData.kinetic_events)) {
-        parsedData.kinetic_events = [];
-      }
-    } catch (e) {}
+    cleanText = (result.response.text() || "{}").replace(/```json\n?/g, '').replace(/```/g, '').trim();
+    const parsedData = JSON.parse(cleanText);
     
-    return NextResponse.json({ ...parsedData, rawFeed: rawIntel });
+    return NextResponse.json({ 
+        situation_report: parsedData.situation_report || "", 
+        kinetic_events: parsedData.kinetic_events || [],
+        missileTargets: parsedData.trajectories || [],
+        detected_launches: parsedData.detected_launches || [], // The new correlation array
+        rawFeed: combinedData // Passing combined data to frontend for transparency
+    });
 
   } catch (e: any) {
-    return NextResponse.json({ situation_report: "", kinetic_events: [], rawFeed: "" }, { status: 500 });
+    console.error("Gemini Error:", e.message);
+    return NextResponse.json({ situation_report: "ANALYSIS ERROR", kinetic_events: [], missileTargets: [], detected_launches: [] }, { status: 500 });
   }
 }

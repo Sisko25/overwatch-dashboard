@@ -18,7 +18,7 @@ interface Aircraft {
 
 export default function FlightTrackerLayer() {
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
-  const aircraftRef = useRef<Aircraft[]>([]); // Ref to hold data for the high-frequency animation loop
+  const aircraftRef = useRef<Aircraft[]>([]);
 
   // 1. DATA FETCHING LOOP (Pulls new positions every 10s)
   useEffect(() => {
@@ -28,7 +28,6 @@ export default function FlightTrackerLayer() {
         if (!res.ok) throw new Error("Offline");
         const data = await res.json();
         
-        // Filter and clean the data
         const livePlanes = data.ac
           .filter((p: any) => p.lat && p.lon)
           .map((p: any) => ({
@@ -38,7 +37,7 @@ export default function FlightTrackerLayer() {
             lon: parseFloat(p.lon),
             alt_baro: p.alt_baro || 0,
             track: parseFloat(p.track || 0),
-            gs: parseFloat(p.gs || 250), // Fallback speed to 250kts if not provided
+            gs: parseFloat(p.gs || 250), 
             t: p.t || "",
             desc: p.desc || ""
           }));
@@ -55,20 +54,14 @@ export default function FlightTrackerLayer() {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. THE 60FPS SMOOTH GLIDE ENGINE (Dead Reckoning)
+  // 2. THE DEAD RECKONING ENGINE (Fixed for Clickability & Accurate Speed)
   useEffect(() => {
-    let lastTimestamp = 0;
-
-    const animate = (timestamp: number) => {
-      if (!lastTimestamp) lastTimestamp = timestamp;
-      const deltaTime = (timestamp - lastTimestamp) / 1000; // time in seconds
-      lastTimestamp = timestamp;
-
-      // Update positions based on Ground Speed and Heading
+    const intervalId = setInterval(() => {
       const updated = aircraftRef.current.map(plane => {
-        // Distance = Speed * Time. (Knots to Degrees approx: 1kt = 0.0000005 deg/sec)
-        const speedFactor = (plane.gs || 250) * 0.0000005;
-        const headingRad = (plane.track - 90) * (Math.PI / 180); // Adjusting for 0 deg being North
+        // Distance = Speed * Time. 
+        // We are updating every 1000ms (1 sec), so Time multiplier is 1.
+        const speedFactor = (plane.gs || 250) * 0.0000005; 
+        const headingRad = (plane.track - 90) * (Math.PI / 180); 
         
         return {
           ...plane,
@@ -79,11 +72,9 @@ export default function FlightTrackerLayer() {
 
       aircraftRef.current = updated;
       setAircraft(updated);
-      requestAnimationFrame(animate);
-    };
+    }, 1000); // Ticks every 1 second instead of 60FPS
 
-    const animationId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationId);
+    return () => clearInterval(intervalId);
   }, []);
 
   return (
@@ -96,7 +87,7 @@ export default function FlightTrackerLayer() {
         const planeIcon = L.divIcon({
           className: 'bg-transparent',
           html: `
-            <div style="transform: rotate(${plane.track}deg);" class="w-6 h-6 flex items-center justify-center transition-all duration-500">
+            <div style="transform: rotate(${plane.track}deg);" class="w-6 h-6 flex items-center justify-center transition-transform duration-1000">
               <svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" class="drop-shadow-[0_0_3px_${color}]">
                  <path d="M12 2L12 12M12 12L16 20M12 12L8 20" stroke-linecap="round"/>
                  <polygon points="12,2 14,10 22,12 14,14 12,22 10,14 2,12 10,10" fill="${color}" fill-opacity="0.2"/>
@@ -114,11 +105,14 @@ export default function FlightTrackerLayer() {
             icon={planeIcon}
           >
             <Popup>
-              <div className="bg-black text-cyan-400 p-2 font-mono text-[10px]">
-                <div className="font-bold border-b border-cyan-900 mb-1">LIVE TACTICAL TRACK</div>
-                <div>CALLSIGN: {plane.flight}</div>
-                <div>ALTITUDE: {plane.alt_baro} FT</div>
-                <div>SPEED: {plane.gs} KTS</div>
+              <div className="bg-black text-cyan-400 p-2 font-mono text-[10px] border border-cyan-500/50 shadow-lg min-w-[150px]">
+                <div className="font-bold border-b border-cyan-900 mb-2 pb-1 text-white">TACTICAL TRACK</div>
+                <div className="grid grid-cols-2 gap-1">
+                  <span className="text-cyan-700">CALLSIGN:</span> <span>{plane.flight}</span>
+                  <span className="text-cyan-700">ALTITUDE:</span> <span>{plane.alt_baro} FT</span>
+                  <span className="text-cyan-700">SPEED:</span> <span>{plane.gs} KTS</span>
+                  <span className="text-cyan-700">HEADING:</span> <span>{plane.track}°</span>
+                </div>
               </div>
             </Popup>
           </Marker>

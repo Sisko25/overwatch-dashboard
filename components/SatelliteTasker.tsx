@@ -62,10 +62,10 @@ export default function SatelliteTasker({ lat, lng, onClose }: SatelliteProps) {
                </div>
             ) : (
                <div className="w-full h-full relative group">
-                 {/* 3D-COMPATIBLE IMAGE LAYER */}
+                 {/* FIXED: Replaced Unsplash URL with the dynamic ArcGIS imageryUrl */}
                  <div 
                     className="absolute inset-0 bg-cover bg-center grayscale contrast-125 sepia hue-rotate-[180deg] saturate-200"
-                    style={{ backgroundImage: `url('https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=800&q=80')` }} 
+                    style={{ backgroundImage: `url('${imageryUrl}')` }} 
                  >
                     {/* Inner Overlay for the 'Targeted' look */}
                     <div className="absolute inset-0 bg-cyan-900/20 mix-blend-overlay"></div>
