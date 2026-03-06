@@ -18,7 +18,7 @@ export default function DetectionPanel({ threats }: { threats: ThreatAssessment[
   return (
     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[800px] bg-black/90 border border-red-900/50 p-4 font-mono z-[1000] shadow-[0_0_20px_rgba(239,68,68,0.2)]">
       <div className="flex justify-between items-center mb-3 border-b border-red-900/50 pb-2">
-        <span className="text-red-500 animate-pulse font-bold tracking-widest">● EARLY WARNING CORRELATION</span>
+        <span className="text-red-500 animate-pulse font-bold tracking-widest">● EARLY WARNING</span>
         <span className="text-[10px] text-slate-500 tracking-widest">DATALINK: ADSB-X // DIS intel</span>
       </div>
       

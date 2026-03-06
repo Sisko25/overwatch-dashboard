@@ -1,11 +1,50 @@
 "use client";
 
-import React from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Tooltip } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, Tooltip, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css'; // Turbopack handles this perfectly at the top level
+import 'leaflet/dist/leaflet.css';
 
-// NEW: Added children prop (React.ReactNode) to accept nested components
+// --- Animated Trajectory Engine ---
+function AnimatedMissile({ startLat, startLng, endLat, endLng }: { startLat: number, startLng: number, endLat: number, endLng: number }) {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    let animationFrameId: number;
+    const duration = 2000; // 2 seconds to reach the target
+    const startTime = performance.now();
+
+    const animate = (time: number) => {
+      let t = (time - startTime) / duration;
+      if (t > 1) t = t % 1; 
+      
+      setProgress(t);
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
+
+  const currentLat = startLat + (endLat - startLat) * progress;
+  const currentLng = startLng + (endLng - startLng) * progress;
+
+  return (
+    <>
+      <Polyline 
+        positions={[[startLat, startLng], [endLat, endLng]]} 
+        pathOptions={{ color: '#f97316', weight: 2, dashArray: '4, 8', opacity: 0.3 }} 
+      />
+      <CircleMarker 
+        center={[currentLat, currentLng]} 
+        radius={4} 
+        pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 1 }} 
+      />
+    </>
+  );
+}
+
+// --- MAIN MAP COMPONENT ---
 export default function MapEngine({ 
   events = [], 
   trajectories = [], 
@@ -15,7 +54,7 @@ export default function MapEngine({
   trajectories: any[], 
   children?: React.ReactNode 
 }) {
-  // Pinpoint accurate icon
+  
   const createIcon = () => L.divIcon({
     className: 'custom-tactical-icon',
     html: `
@@ -32,7 +71,15 @@ export default function MapEngine({
       <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
       
       {trajectories.map((t: any, i: number) => (
-        <Polyline key={`traj-${i}`} positions={[[t.startLat, t.startLng], [t.endLat, t.endLng]]} pathOptions={{ color: '#f97316', weight: 2, dashArray: '8, 8', opacity: 0.8 }} />
+        <AnimatedMissile 
+          key={`traj-${i}`} 
+          // SWAPPED: Coordinates are reversed here to fix the directional bug
+          // The visual origin now perfectly matches the correlation text
+          startLat={t.endLat} 
+          startLng={t.endLng} 
+          endLat={t.startLat} 
+          endLng={t.startLng} 
+        />
       ))}
       
       {events.map((e: any, i: number) => (
@@ -43,7 +90,6 @@ export default function MapEngine({
         </Marker>
       ))}
 
-      {/* NEW: Render the nested child layers here so they attach to the Leaflet map context */}
       {children}
       
     </MapContainer>
